@@ -10,6 +10,7 @@ export default {
       data: [],
     };
   },
+
   watch: {
     selectedItems: {
       handler(newValue) {
@@ -18,9 +19,10 @@ export default {
     },
     searchQuery: {
       handler(newValue) {
-        console.log(newValue);
+        if(newValue === "")
+        this.getData();
       },
-    },
+    }
   },
   computed: {
     filtered() {
@@ -46,17 +48,63 @@ export default {
     },
   },
   methods: {
+    // Debounce function
+    debounce(callback, waitTime) {
+      let timer;
+      return (...args) => {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+              callback(...args);
+          }, waitTime);
+      }
+    },
+  
     getData() {
-      fetch("https://jsonplaceholder.typicode.com/photos")
+      fetch(`https://jsonplaceholder.typicode.com/photos`)
         .then((res) => res.json())
         .then((json) => {
-          console.log(json);
-          this.data = json;
+          
+          this.data = json.map((item) => {
+            return {
+              ...item,
+              selected: false
+            }
+          });
         });
     },
+
+    search(value) {
+      fetch(`https://jsonplaceholder.typicode.com/photos?title=${value}`)
+        .then((res) => res.json())
+        .then((data) => this.data = data);
+    },
+
+    debouncedSearch: function(event) {
+      if(event.target.value.length > 3)
+      this.debounce(this.search(event.target.value), 300);
+    },
+
+    isObjectInArray(arr, key, value) {
+      return arr.some(obj => obj[key] === value);
+    },
+
+    handleSelectItem(item,index){
+      let newItem = {...item, selected: !item.selected}
+      this.data[index].selected = !item.selected
+
+      const exists = this.isObjectInArray(this.selectedItems, 'id', newItem.id);
+      if(!exists){
+        this.selectedItems = [...this.selectedItems, newItem]
+      }else{
+        this.selectedItems = this.selectedItems.filter((item) => item.id !== newItem.id)
+      }
+      
+    }
+
+   
   },
   mounted() {
-    this.getData();
+   this.getData();
   },
 };
 </script>
@@ -66,7 +114,7 @@ export default {
     <div class="selected-item" @click="isShowing = !isShowing">
       <span>{{ displayLabel }}</span>
       <svg
-       :class="isShowing ? 'dropdown' : ''"
+        :class="isShowing ? 'dropdown' : ''"
         class="drop-down-icon"
         xmlns="http://www.w3.org/2000/svg"
         width="24"
@@ -82,16 +130,19 @@ export default {
 
     <div class="dropdown-popover" v-if="isShowing">
       <input
-        type="text"
+        type="search"
         v-model="searchQuery"
         placeholder="Search Participant"
+        @input="debouncedSearch"
       />
       <div class="suggestions">
+        <div class="records-total">Showing 25 results</div>
         <ul>
           <li
-            v-for="(item, index) in filtered"
-            :key="item.id"
-            @click="selectedItems = [...selectedItems, item]"
+            v-for="(item, index) in data"
+            :key= "`rec ${item.id} ${index}`"
+            @click="handleSelectItem(item, index)"
+            :class="item.selected ? 'selected' : ''"
           >
             {{ item.title }}
           </li>
@@ -102,12 +153,25 @@ export default {
 </template>
 
 <style scoped>
+
+.records-total{
+  background-color: #F1F1F1;
+  height: 20px;
+  padding: 5px;
+  width: 380px;
+  margin-top: 10px;
+  color: gray;
+}
 .dropdown-wrapper {
   max-width: 400px;
   position: relative;
   margin: 0 auto;
 }
 
+.selected{
+  background-color: teal;
+  color: white
+}
 .selected-item {
   border-radius: 5px;
   border: 2px solid teal;
@@ -160,7 +224,7 @@ export default {
 
       li {
         width: 100%;
-        border-bottom: 1px solid teal;
+        border-bottom: 1px solid #F1F1F1;
         padding: 10px;
         cursor: pointer;
         font-size: medium;
